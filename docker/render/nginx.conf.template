@@ -8,11 +8,6 @@ map $http_x_forwarded_host $forwarded_host {
     '' $http_host;
 }
 
-map $http_x_forwarded_port $forwarded_port {
-    default $http_x_forwarded_port;
-    '' $server_port;
-}
-
 server {
     listen ${PORT};
     server_name _;
@@ -30,9 +25,10 @@ server {
         fastcgi_pass 127.0.0.1:9000;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param SERVER_PORT 443;
         fastcgi_param HTTP_X_FORWARDED_PROTO $forwarded_proto;
         fastcgi_param HTTP_X_FORWARDED_HOST $forwarded_host;
         fastcgi_param HTTP_X_FORWARDED_FOR $http_x_forwarded_for;
-        fastcgi_param HTTP_X_FORWARDED_PORT $forwarded_port;
+        fastcgi_param HTTP_X_FORWARDED_PORT 443;
     }
 }

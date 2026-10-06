@@ -11,8 +11,21 @@ if [ -z "${APP_URL:-}" ]; then
         echo "APP_URL is required (or set RENDER_EXTERNAL_URL)." >&2
         exit 1
     fi
-    export APP_URL
 fi
+
+APP_URL="$(php -r '
+$parts = parse_url($argv[1]);
+if ($parts === false || ! isset($parts["scheme"], $parts["host"])) {
+    fwrite(STDERR, "APP_URL must be an absolute URL.\n");
+    exit(1);
+}
+$host = $parts["host"];
+if (str_contains($host, ":") && $host[0] !== "[") {
+    $host = "[" . $host . "]";
+}
+echo $parts["scheme"] . "://" . $host . rtrim($parts["path"] ?? "", "/");
+' "$APP_URL")"
+export APP_URL
 
 if [ -z "${APP_KEY:-}" ]; then
     echo "APP_KEY is required. Set a Laravel-formatted base64 key in the Render dashboard." >&2

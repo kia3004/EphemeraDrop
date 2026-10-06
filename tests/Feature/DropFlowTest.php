@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Drop;
 use App\Jobs\DeleteDrop;
+use App\Providers\AppServiceProvider;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -187,9 +188,24 @@ class DropFlowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('finalized', true);
 
+        config([
+            'app.env' => 'production',
+            'app.url' => 'https://ephemeradrop.onrender.com',
+        ]);
+        (new AppServiceProvider($this->app))->boot();
+
         Queue::fake();
-        $claimed = $this->postJson('/api/drops/' . $id . '/claim')->assertOk();
+        $claimed = $this->withServerVariables([
+            'SERVER_PORT' => '10000',
+            'HTTP_HOST' => 'ephemeradrop.onrender.com',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+            'HTTP_X_FORWARDED_PORT' => '443',
+        ])->postJson('/api/drops/' . $id . '/claim')->assertOk();
         $this->assertCount(3, $claimed->json('chunks'));
+        foreach ($claimed->json('chunks') as $url) {
+            $this->assertStringNotContainsString(':10000', $url);
+            $this->assertStringStartsWith('https://ephemeradrop.onrender.com/', $url);
+        }
 
         $this->travel(61)->seconds();
         foreach ($claimed->json('chunks') as $index => $url) {
