@@ -1,0 +1,73 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: ephemeradrop_test
+      MYSQL_USER: ephemeradrop
+      MYSQL_PASSWORD: test-password
+      MYSQL_ROOT_PASSWORD: root-test-password
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '--protocol=TCP', '-h', '127.0.0.1', '-uroot', '-proot-test-password']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ephemeradrop_test
+      POSTGRES_USER: ephemeradrop
+      POSTGRES_PASSWORD: test-password
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U ephemeradrop -d ephemeradrop_test']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  test-mysql:
+    build:
+      context: .
+      dockerfile: docker/render/Dockerfile
+      target: testing
+    entrypoint: ['php', 'artisan', 'test']
+    environment:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      DB_CONNECTION: mysql
+      DB_URL: mysql://ephemeradrop:test-password@mysql:3306/ephemeradrop_test
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ephemeradrop_test
+      DB_USERNAME: ephemeradrop
+      DB_PASSWORD: test-password
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      SESSION_DRIVER: database
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  test-postgres:
+    build:
+      context: .
+      dockerfile: docker/render/Dockerfile
+      target: testing
+    entrypoint: ['php', 'artisan', 'test']
+    environment:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      DB_CONNECTION: pgsql
+      DB_URL: postgresql://ephemeradrop:test-password@postgres:5432/ephemeradrop_test
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ephemeradrop_test
+      DB_USERNAME: ephemeradrop
+      DB_PASSWORD: test-password
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      SESSION_DRIVER: database
+    depends_on:
+      postgres:
+        condition: service_healthy
