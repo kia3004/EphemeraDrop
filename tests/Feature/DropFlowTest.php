@@ -5,9 +5,13 @@ namespace Tests\Feature;
 use App\Models\Drop;
 use App\Jobs\DeleteDrop;
 use App\Providers\AppServiceProvider;
+use Aws\Result;
+use Aws\S3\S3Client;
+use Illuminate\Filesystem\AwsS3V3Adapter;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Mockery;
 use Tests\TestCase;
 
 class DropFlowTest extends TestCase
@@ -225,6 +229,49 @@ class DropFlowTest extends TestCase
         (new DeleteDrop($id))->handle();
         Storage::disk('s3')->assertMissing('drops/' . $id . '/chunks/0.bin');
         $this->assertDatabaseMissing('drops', ['id' => $id]);
+    }
+
+    public function test_s3_chunk_upload_omits_unsupported_object_acl(): void
+    {
+        config([
+            'ephemera.storage_disk' => 's3',
+        ]);
+
+        $created = $this->postJson('/api/drops', [
+            'kind' => 'file',
+            'size_bytes' => 1,
+            'chunk_count' => 2,
+        ])->assertCreated();
+        $id = $created->json('id');
+
+        $client = Mockery::mock(S3Client::class);
+        $client->shouldReceive('putObject')
+            ->once()
+            ->with(Mockery::on(function (array $arguments) use ($id): bool {
+                return $arguments['Bucket'] === 'private-test-bucket'
+                    && $arguments['Key'] === 'drops/' . $id . '/chunks/0.bin'
+                    && $arguments['Body'] === 'encrypted-header'
+                    && $arguments['ContentType'] === 'application/octet-stream'
+                    && ! array_key_exists('ACL', $arguments);
+            }))
+            ->andReturn(new Result([]));
+
+        $disk = Mockery::mock(AwsS3V3Adapter::class);
+        $disk->shouldReceive('getClient')->once()->andReturn($client);
+        $disk->shouldReceive('getConfig')->once()->andReturn(['bucket' => 'private-test-bucket']);
+        Storage::shouldReceive('disk')->once()->with('s3')->andReturn($disk);
+
+        $response = $this->call(
+            'PUT',
+            '/api/drops/' . $id . '/chunks/0',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/octet-stream', 'HTTP_X_UPLOAD_TOKEN' => $created->json('upload_token')],
+            'encrypted-header',
+        );
+
+        $response->assertOk()->assertJsonPath('uploaded', true);
     }
 
     public function test_create_rate_limiter_rejects_requests_over_the_limit(): void

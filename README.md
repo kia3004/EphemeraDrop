@@ -66,7 +66,7 @@ The default web plan is `free` for a demo. In `render.yaml`, change the web serv
 | `AWS_ENDPOINT` | Exact S3-compatible endpoint from that bucket's details, including `https://` |
 | `AWS_DEFAULT_REGION` | Exact bucket region |
 
-The Blueprint sets `EPHEMERA_STORAGE_DISK=s3` and `AWS_USE_PATH_STYLE_ENDPOINT=true`. S3-compatible file operations use Laravel's `Storage` facade; chunks remain private and are served by the app's signed routes, not from public B2 URLs. The installed AWS SDK for PHP is v3.399.1 and accepts `request_checksum_calculation` / `response_checksum_validation`; both default to `when_required` to avoid sending optional checksums that some S3-compatible APIs reject. No real B2 credentials are used in tests.
+The Blueprint sets `EPHEMERA_STORAGE_DISK=s3` and `AWS_USE_PATH_STYLE_ENDPOINT=true`. S3-compatible file operations use Laravel's `Storage` facade; chunk writes omit object-level ACL headers because B2 does not support them. Chunks remain private through the private bucket and are served by the app's signed routes, not from public B2 URLs. The installed AWS SDK for PHP is v3.399.1 and accepts `request_checksum_calculation` / `response_checksum_validation`; both default to `when_required` to avoid sending optional checksums that some S3-compatible APIs reject. No real B2 credentials are used in tests.
 
 ### B2 lifecycle cleanup and costs
 
@@ -77,7 +77,7 @@ B2 keeps file versions. An application delete may add a hide marker rather than 
 
 Verify the exact option names and values in the current Backblaze UI before saving. Backblaze documents these as `daysFromUploadingToHiding: 8` and `daysFromHidingToDeleting: 1`; do not apply a blank-prefix rule to a bucket that contains unrelated data.
 
-Backblaze's published entry-level pricing has included about 10 GB of free storage, with API transaction allowances and download/egress terms that may depend on usage and destination. Check the [current Backblaze B2 pricing page](https://www.backblaze.com/cloud-storage/pricing) for exact free allowances and rates before relying on them. The B2 S3-compatible API supports private buckets and presigned operations; B2 does not support the full AWS S3 feature set, including IAM roles, browser POST uploads, and object tagging.
+Backblaze's published entry-level pricing has included about 10 GB of free storage, with API transaction allowances and download/egress terms that may depend on usage and destination. Check the [current Backblaze B2 pricing page](https://www.backblaze.com/cloud-storage/pricing) for exact free allowances and rates before relying on them. The B2 S3-compatible API supports private buckets and presigned operations; B2 does not support the full AWS S3 feature set, including object-level ACLs, IAM roles, browser POST uploads, and object tagging.
 
 ### Production operations
 

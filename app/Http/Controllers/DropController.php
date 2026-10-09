@@ -7,6 +7,7 @@ use App\Actions\CreateDrop;
 use App\Actions\DeleteDropAction;
 use App\Http\Requests\StoreDropRequest;
 use App\Models\Drop;
+use Illuminate\Filesystem\AwsS3V3Adapter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -58,7 +59,21 @@ class DropController extends Controller
         abort_if($chunk === '' || strlen($chunk) > (int) config('ephemera.chunk_size') + 28, 413);
 
         $path = $drop->storage_path . '/chunks/' . $index . '.bin';
-        Storage::disk($drop->storage_disk)->put($path, $chunk);
+        $disk = Storage::disk($drop->storage_disk);
+
+        if ($disk instanceof AwsS3V3Adapter) {
+            // B2 rejects object-level ACLs; privacy comes from the private bucket.
+            $diskConfig = $disk->getConfig();
+            $root = trim($diskConfig['root'] ?? '', '/');
+            $disk->getClient()->putObject([
+                'Bucket' => $diskConfig['bucket'],
+                'Key' => ($root === '' ? '' : $root . '/') . $path,
+                'Body' => $chunk,
+                'ContentType' => 'application/octet-stream',
+            ]);
+        } else {
+            abort_unless($disk->put($path, $chunk), 503, 'The file chunk could not be stored.');
+        }
 
         return response()->json(['uploaded' => true, 'index' => $index]);
     }
