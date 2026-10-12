@@ -37,15 +37,15 @@ class SendDropOpenedNotification implements ShouldQueue
             $destination['addresses'],
         );
 
+        $message = 'A drop was opened. Remaining views: ' . $this->remainingViews;
+
         Http::timeout(5)
             ->withOptions([
                 'allow_redirects' => false,
                 'curl' => [CURLOPT_RESOLVE => $resolvedAddresses],
             ])
-            ->post($this->url, [
-                'message' => 'A drop was opened',
-                'remaining_views' => $this->remainingViews,
-            ])
+            ->withBody($message, 'text/plain')
+            ->post($this->url)
             ->throw();
     }
 }
